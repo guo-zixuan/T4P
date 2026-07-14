@@ -60,6 +60,17 @@ whitelist: [
             ]
 update_param: True
 
+# LoRA for TTT: when use_lora=True, whitelist/blacklist/fr_* are ignored for
+# backbone updates; only LoRA adapters (+ per-agent actor_embeds) are trained.
+use_lora: False
+lora_rank: 8
+lora_alpha: 16
+lora_targets: [
+            Linear,
+            Conv1d,
+            MultiheadAttention,
+            ]
+
 fr_embedding: False
 fr_first_layer: False
 fr_enc_layer: False

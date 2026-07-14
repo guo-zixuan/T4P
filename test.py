@@ -58,9 +58,29 @@ def main(conf):
 
     model = instantiate(conf.model.target)
     model.net.load_from_checkpoint(conf.pretrained_weights)
+
+    if getattr(conf, "use_lora", False):
+        from model.layers.lora import apply_lora, lora_param_stats
+
+        replaced = apply_lora(
+            model.net,
+            rank=conf.lora_rank,
+            alpha=conf.lora_alpha,
+            target_types=tuple(conf.lora_targets),
+        )
+        stats = lora_param_stats(model.net)
+        print(f"==== LoRA enabled: replaced {len(replaced)} modules ====")
+        print(
+            f"lora_params={stats['lora_params']}, "
+            f"trainable={stats['trainable_params']}, "
+            f"total={stats['total_params']}, "
+            f"ratio={stats['trainable_ratio']:.4f}"
+        )
+    else:
+        model.freeze_layers(conf)
+
     model = model.to(device)
     model.eval()
-    model.freeze_layers(conf)
 
     actor_tyme_embed_clone = model.net.actor_type_embed.clone().detach()
 
