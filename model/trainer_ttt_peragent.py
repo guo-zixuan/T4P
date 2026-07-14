@@ -556,6 +556,40 @@ class Trainer(pl.LightningModule):
         return [optimizer], [scheduler]
     
     def configure_ttt_optimizers(self, conf):
+        if getattr(conf, "use_lora", False):
+            from model.layers.lora import get_lora_parameters, is_lora_param_name
+
+            lora_params = get_lora_parameters(self)
+            if len(lora_params) == 0:
+                raise RuntimeError(
+                    "use_lora=True but no LoRA parameters found. "
+                    "Call apply_lora(model.net, ...) before configure_ttt_optimizers."
+                )
+
+            # Keep non-LoRA params frozen (actor_embeds are optimized separately in test.py).
+            for name, param in self.named_parameters():
+                if is_lora_param_name(name):
+                    param.requires_grad = True
+                elif "actor_embeds" in name:
+                    # Created later in the TTT loop; leave as-is if already present.
+                    continue
+                else:
+                    param.requires_grad = False
+
+            optimizer = torch.optim.AdamW(
+                [{"params": lora_params, "weight_decay": self.weight_decay}],
+                lr=self.lr,
+                weight_decay=self.weight_decay,
+            )
+            scheduler = WarmupCosLR(
+                optimizer=optimizer,
+                lr=self.lr,
+                min_lr=1e-6,
+                warmup_epochs=self.warmup_epochs,
+                epochs=self.epochs,
+            )
+            return [optimizer], [scheduler]
+
         blacklist = set(conf.blacklist)
         whitelist = set(conf.whitelist)
         assert len(blacklist & whitelist) == 0
